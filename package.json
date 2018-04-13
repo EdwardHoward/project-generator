@@ -1,5 +1,5 @@
 {
-  "name": "Project Generator",
+  "name": "project-generator",
   "version": "0.2.0",
   "description": "Generates starter projects",
   "main": "index.js",
