@@ -1,7 +1,7 @@
 const path = require('path');
 
 module.exports = {
-  entry: './src/index.ts',
+  entry: './src/index.tsx',
   devtool: 'inline-source-map',
   mode: 'development',
   module: {
@@ -10,11 +10,15 @@ module.exports = {
         test: /\.tsx?$/,
         use: 'ts-loader',
         exclude: /node_modules/
+      },
+      {
+          test:/\.(s*)css$/,
+          use: ['style-loader', 'css-loader', 'sass-loader']
       }
     ]
   },
   resolve: {
-    extensions: [ '.tsx', '.ts', '.js' ]
+    extensions: [ '.tsx', '.ts', '.js', '.scss', '.css' ]
   },
   output: {
     filename: 'bundle.js',
