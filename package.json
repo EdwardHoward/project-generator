@@ -1,6 +1,6 @@
 {
   "name": "project-generator",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "description": "Generates starter projects",
   "main": "index.js",
   "scripts": {
