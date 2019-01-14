@@ -4,7 +4,8 @@
   "description": "An empty React Typescript project bundled with Webpack",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "webpack-dev-server"
+    "start": "webpack-dev-server --config webpack.dev.js",
+    "build": "webpack-dev-server --config webpack.prod.js"
   },
   "keywords": [
     "react",
