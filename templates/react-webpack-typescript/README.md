@@ -1,4 +1,4 @@
-# Webpack Typescript Project
+# React Webpack Typescript Project
 
 Install Project
 
@@ -6,7 +6,7 @@ Install Project
 
 Run Project 
 
-    npm start
+    npm run start
 
 Server runs at 
 
