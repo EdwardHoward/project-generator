@@ -6,7 +6,7 @@ Install Project
 
 Run Project 
 
-    npm start
+    npm run start
 
 Server runs at 
 
