@@ -1,4 +1,4 @@
-# Webpack Typescript Project
+# Redux React Webpack Typescript Project
 
 Install Project
 
