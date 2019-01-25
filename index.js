@@ -4,7 +4,17 @@ const inquirer = require('inquirer');
 const fs = require('fs');
 
 const CURR_DIR = process.cwd();
-const CHOICES = fs.readdirSync(`${__dirname}/templates`);
+
+const choiceOrder = [
+    'electron-react-typescript',
+    'redux-react-webpack-typescript',
+    'react-webpack-typescript',
+    'webpack-typescript'
+]
+
+const CHOICES = fs.readdirSync(`${__dirname}/templates`).sort((a, b) => {
+    return choiceOrder.indexOf(b) - choiceOrder.indexOf(a);
+});
 
 const QUESTIONS = [
     {
