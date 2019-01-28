@@ -6,6 +6,7 @@ const fs = require('fs');
 const spawn = require('cross-spawn');
 
 const CURR_DIR = process.cwd();
+const TEMPLATE_DIR = `${__dirname}\\templates`;
 
 const choiceOrder = [
     'electron-react-typescript',
@@ -14,7 +15,7 @@ const choiceOrder = [
     'webpack-typescript'
 ]
 
-const CHOICES = fs.readdirSync(`${__dirname}/templates`).sort((a, b) => {
+const CHOICES = fs.readdirSync(TEMPLATE_DIR).sort((a, b) => {
     return choiceOrder.indexOf(b) - choiceOrder.indexOf(a);
 });
 
@@ -35,23 +36,23 @@ const QUESTIONS = [
         }
     },
     {
-        name: 'runInstall',
+        name: 'shouldInstall',
         type: 'confirm',
         message: 'Run npm install'
     }
 ];
 
 inquirer.prompt(QUESTIONS).then(async (answers) => {
-    const { project, name, runInstall } = answers;
+    const { project, name, shouldInstall } = answers;
 
     const targetPath = `${CURR_DIR}\\${name}`;
-    const templatePath = `${__dirname}/templates/${project}`;
+    const templatePath = `${TEMPLATE_DIR}\\${project}`;
 
-    fs.mkdirSync(`${CURR_DIR}/${name}`);
-    createDirectoryContents(templatePath, name);
+    fs.mkdirSync(targetPath);
+    copyDirectoryContents(templatePath, targetPath);
 
-    if (runInstall) {
-        console.log(`> npm --prefix ${targetPath} -i ${targetPath}`);
+    if (shouldInstall) {
+        console.log(`> npm install`);
         try{
             await install(targetPath);
             console.log(chalk`{blue Install finished}`);
@@ -79,23 +80,20 @@ function install(path){
     });
 }
 
-function createDirectoryContents(templatePath, newProjectPath) {
+function copyDirectoryContents(templatePath, targetPath) {
     const filesToCreate = fs.readdirSync(templatePath);
 
     filesToCreate.forEach(file => {
-        const origFilePath = `${templatePath}/${file}`;
-
-        const stats = fs.statSync(origFilePath);
+        const templateFilePath = `${templatePath}/${file}`;
+        const targetFilePath = `${targetPath}/${file}`;
+        
+        const stats = fs.statSync(templateFilePath);
 
         if (stats.isFile()) {
-            const contents = fs.readFileSync(origFilePath, 'utf8');
-            const writePath = `${CURR_DIR}/${newProjectPath}/${file}`;
-
-            fs.writeFileSync(writePath, contents, 'utf8');
+            fs.copyFileSync(templateFilePath, targetFilePath);
         } else if (stats.isDirectory()) {
-            fs.mkdirSync(`${CURR_DIR}/${newProjectPath}/${file}`);
-
-            createDirectoryContents(`${templatePath}/${file}`, `${newProjectPath}/${file}`);
+            fs.mkdirSync(targetFilePath);
+            copyDirectoryContents(templateFilePath, targetFilePath);
         }
     });
 }
