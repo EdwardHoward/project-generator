@@ -6,6 +6,7 @@ const fs = require('fs');
 const spawn = require('cross-spawn');
 
 const CURR_DIR = process.cwd();
+const TEMPLATE_DIR = `${__dirname}\\templates`;
 
 const choiceOrder = [
     'electron-react-typescript',
@@ -14,7 +15,7 @@ const choiceOrder = [
     'webpack-typescript'
 ]
 
-const CHOICES = fs.readdirSync(`${__dirname}/templates`).sort((a, b) => {
+const CHOICES = fs.readdirSync(TEMPLATE_DIR).sort((a, b) => {
     return choiceOrder.indexOf(b) - choiceOrder.indexOf(a);
 });
 
@@ -35,23 +36,23 @@ const QUESTIONS = [
         }
     },
     {
-        name: 'runInstall',
+        name: 'shouldInstall',
         type: 'confirm',
         message: 'Run npm install'
     }
 ];
 
 inquirer.prompt(QUESTIONS).then(async (answers) => {
-    const { project, name, runInstall } = answers;
+    const { project, name, shouldInstall } = answers;
 
     const targetPath = `${CURR_DIR}\\${name}`;
-    const templatePath = `${__dirname}/templates/${project}`;
+    const templatePath = `${TEMPLATE_DIR}\\${project}`;
 
     fs.mkdirSync(targetPath);
-    createDirectoryContents(templatePath, name);
+    copyDirectoryContents(templatePath, targetPath);
 
-    if (runInstall) {
-        console.log(`> npm --prefix ${targetPath} -i ${targetPath}`);
+    if (shouldInstall) {
+        console.log(`> npm install`);
         try{
             await install(targetPath);
             console.log(chalk`{blue Install finished}`);
@@ -79,8 +80,7 @@ function install(path){
     });
 }
 
-function createDirectoryContents(templatePath, targetPath) {
-    const encoding = 'utf8';
+function copyDirectoryContents(templatePath, targetPath) {
     const filesToCreate = fs.readdirSync(templatePath);
 
     filesToCreate.forEach(file => {
@@ -90,12 +90,10 @@ function createDirectoryContents(templatePath, targetPath) {
         const stats = fs.statSync(templateFilePath);
 
         if (stats.isFile()) {
-            const contents = fs.readFileSync(templateFilePath, encoding);
-
-            fs.writeFileSync(targetFilePath, contents, encoding);
+            fs.copyFileSync(templateFilePath, targetFilePath);
         } else if (stats.isDirectory()) {
             fs.mkdirSync(targetFilePath);
-            createDirectoryContents(templateFilePath, targetFilePath);
+            copyDirectoryContents(templateFilePath, targetFilePath);
         }
     });
 }
