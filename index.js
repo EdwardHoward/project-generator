@@ -47,7 +47,7 @@ inquirer.prompt(QUESTIONS).then(async (answers) => {
     const targetPath = `${CURR_DIR}\\${name}`;
     const templatePath = `${__dirname}/templates/${project}`;
 
-    fs.mkdirSync(`${CURR_DIR}/${name}`);
+    fs.mkdirSync(targetPath);
     createDirectoryContents(templatePath, name);
 
     if (runInstall) {
@@ -79,23 +79,23 @@ function install(path){
     });
 }
 
-function createDirectoryContents(templatePath, newProjectPath) {
+function createDirectoryContents(templatePath, targetPath) {
+    const encoding = 'utf8';
     const filesToCreate = fs.readdirSync(templatePath);
 
     filesToCreate.forEach(file => {
-        const origFilePath = `${templatePath}/${file}`;
-
-        const stats = fs.statSync(origFilePath);
+        const templateFilePath = `${templatePath}/${file}`;
+        const targetFilePath = `${targetPath}/${file}`;
+        
+        const stats = fs.statSync(templateFilePath);
 
         if (stats.isFile()) {
-            const contents = fs.readFileSync(origFilePath, 'utf8');
-            const writePath = `${CURR_DIR}/${newProjectPath}/${file}`;
+            const contents = fs.readFileSync(templateFilePath, encoding);
 
-            fs.writeFileSync(writePath, contents, 'utf8');
+            fs.writeFileSync(targetFilePath, contents, encoding);
         } else if (stats.isDirectory()) {
-            fs.mkdirSync(`${CURR_DIR}/${newProjectPath}/${file}`);
-
-            createDirectoryContents(`${templatePath}/${file}`, `${newProjectPath}/${file}`);
+            fs.mkdirSync(targetFilePath);
+            createDirectoryContents(templateFilePath, targetFilePath);
         }
     });
 }
