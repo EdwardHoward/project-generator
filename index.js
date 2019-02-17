@@ -6,7 +6,7 @@ const fs = require('fs');
 const spawn = require('cross-spawn');
 
 const CURR_DIR = process.cwd();
-const TEMPLATE_DIR = `${__dirname}\\templates`;
+const TEMPLATE_DIR = `${__dirname}/templates`;
 
 const CHOICE_ORDER = [
     'electron-react-typescript',
@@ -40,8 +40,8 @@ const QUESTIONS = [
 inquirer.prompt(QUESTIONS).then(async (answers) => {
     const { project, name, shouldInstall } = answers;
 
-    const templatePath = `${TEMPLATE_DIR}\\${project}`;
-    const targetPath = `${CURR_DIR}\\${name}`;
+    const templatePath = `${TEMPLATE_DIR}/${project}`;
+    const targetPath = `${CURR_DIR}/${name}`;
 
     fs.mkdirSync(targetPath);
     copyDirectoryContents(templatePath, targetPath);
