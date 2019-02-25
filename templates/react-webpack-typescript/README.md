@@ -1,5 +1,11 @@
 # React Webpack Typescript Project
 
+Use Docker
+
+    docker-compose up
+
+Or 
+
 Install Project
 
     npm install
