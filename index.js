@@ -34,14 +34,19 @@ const QUESTIONS = [
         name: 'shouldInstall',
         type: 'confirm',
         message: 'Run npm install?'
+    },
+    {
+        name: 'shouldGitInit',
+        type: 'confirm',
+        message: 'Create Git Repository?'
     }
 ];
 
 inquirer.prompt(QUESTIONS).then(async (answers) => {
-    const { project, name, shouldInstall } = answers;
+    const { project, name, shouldInstall, shouldGitInit } = answers;
 
-    const templatePath = `${TEMPLATE_DIR}/${project}`;
-    const targetPath = `${CURR_DIR}/${name}`;
+    const templatePath = `${TEMPLATE_DIR}\\${project}`;
+    const targetPath = `${CURR_DIR}\\${name}`;
 
     fs.mkdirSync(targetPath);
     copyDirectoryContents(templatePath, targetPath);
@@ -57,12 +62,31 @@ inquirer.prompt(QUESTIONS).then(async (answers) => {
         }
     }
 
+    if (shouldGitInit) {
+        console.log(`> git init`);
+        try{
+            await gitInit(targetPath);
+        }catch{
+            console.log(chalk`{red There was an error initializing the git repo}`);
+            console.log(chalk`Initialize repo manually with {underline git init} in {underline ${targetPath}`);
+        }
+    }
+
     console.log(chalk`{green Project generated:} {underline ${targetPath}}`);
 });
 
 function install(path){
     return new Promise((resolve, reject) => {
         spawn('npm', ['install'], {
+            stdio: 'inherit',
+            cwd: path
+        }).on('close', code => code ? reject() : resolve());
+    });
+}
+
+function gitInit(path){
+    return new Promise((resolve, reject) => {
+        spawn('git', ['init'], {
             stdio: 'inherit',
             cwd: path
         }).on('close', code => code ? reject() : resolve());
