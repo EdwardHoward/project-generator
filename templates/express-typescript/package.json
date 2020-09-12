@@ -1,0 +1,32 @@
+{
+  "name": "express-typescript",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "webpack --config webpack.config.js",
+    "start": "webpack --config webpack.dev.js",
+    "start:prod": "npm run build && node dist",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "compression": "^1.7.4",
+    "express": "^4.17.1",
+    "helmet": "^4.1.1",
+    "morgan": "^1.10.0"
+  },
+  "devDependencies": {
+    "@tsconfig/node12": "^1.0.6",
+    "dotenv": "^8.2.0",
+    "nodemon": "^2.0.4",
+    "nodemon-webpack-plugin": "^4.3.2",
+    "typescript": "^3.9.7",
+    "webpack": "^4.44.1",
+    "webpack-cli": "^3.3.12",
+    "webpack-merge": "^5.1.4",
+    "webpack-node-externals": "^2.5.2"
+  }
+}
