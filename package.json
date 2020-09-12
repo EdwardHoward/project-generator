@@ -1,6 +1,6 @@
 {
   "name": "project-generator",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Generates starter projects",
   "main": "index.js",
   "scripts": {
@@ -9,9 +9,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "chalk": "^2.4.2",
-    "cross-spawn": "^6.0.5",
-    "inquirer": "^6.2.1"
+    "chalk": "^4.1.0",
+    "cross-spawn": "^7.0.3",
+    "inquirer": "^7.3.3"
   },
   "bin": {
     "generate-project": "./index.js"
