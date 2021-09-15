@@ -1,112 +1,307 @@
 #!/usr/bin/env node
 
-const inquirer = require('inquirer');
-const chalk = require('chalk');
 const fs = require('fs');
+const meow = require('meow');
+const path = require('path');
+const chalk = require('chalk');
+const Logger = require('./logger');
 const spawn = require('cross-spawn');
+const inquirer = require('inquirer');
+const { CHOICE_ORDER } = require('./constants');
+const { asyncForEach, replace } = require('./utils');
 
 const CURR_DIR = process.cwd();
-const TEMPLATE_DIR = `${__dirname}/templates`;
+const TEMPLATE_DIR = path.join(__dirname, 'templates');
 
-const CHOICE_ORDER = [
-    'electron-react-typescript',
-    'redux-react-webpack-typescript',
-    'react-webpack-typescript',
-    'webpack-typescript'
-]
+const CHOICES = getChoices(TEMPLATE_DIR);
 
-const CHOICES = fs.readdirSync(TEMPLATE_DIR).sort((a, b) => CHOICE_ORDER.indexOf(b) - CHOICE_ORDER.indexOf(a));
+const logger = Logger("verbose");
 
-const QUESTIONS = [
-    {
-        name: 'project',
-        type: 'list',
-        message: 'Choose project',
-        choices: CHOICES
-    },
-    {
-        name: 'name',
-        type: 'input',
-        message: 'Project Name',
-        validate: input => /^([A-Za-z\-\_\d])+$/.test(input) || 'Project name may only include letters, numbers, underscores and hashes.'
-    },
-    {
-        name: 'shouldInstall',
-        type: 'confirm',
-        message: 'Run npm install?'
-    },
-    {
-        name: 'shouldGitInit',
-        type: 'confirm',
-        message: 'Create Git Repository?'
-    }
-];
-
-inquirer.prompt(QUESTIONS).then(async (answers) => {
-    const { project, name, shouldInstall, shouldGitInit } = answers;
-
-    const templatePath = `${TEMPLATE_DIR}\\${project}`;
-    const targetPath = `${CURR_DIR}\\${name}`;
-
-    fs.mkdirSync(targetPath);
-    copyDirectoryContents(templatePath, targetPath);
-
-    if (shouldInstall) {
-        console.log(`> npm install`);
-        try{
-            await install(targetPath);
-            console.log(chalk`{blue Install finished}`);
-        }catch{
-            console.log(chalk`{red There was an error installing the project}`);
-            console.log(chalk`Install manually with {underline npm install} in {underline ${targetPath}`);
+const cli = meow(`
+        Usage
+          $ generate-project <name>
+     
+        Options
+          --dry-run, -n Do not generate project, but show directory and package.json
+          --yes, -y Use default values for package.json
+          --template, -t Name of the template to use
+    `, {
+    flags: {
+        "dry-run": {
+            type: 'boolean',
+            alias: 'n'
+        },
+        "yes": {
+            type: 'boolean',
+            alias: 'y'
+        },
+        "template": {
+            type: 'string',
+            alias: 't'
+        },
+        "install": {
+            type: 'string',
+            alias: 'i'
         }
     }
-
-    if (shouldGitInit) {
-        console.log(`> git init`);
-        try{
-            await gitInit(targetPath);
-        }catch{
-            console.log(chalk`{red There was an error initializing the git repo}`);
-            console.log(chalk`Initialize repo manually with {underline git init} in {underline ${targetPath}`);
-        }
-    }
-
-    console.log(chalk`{green Project generated:} {underline ${targetPath}}`);
 });
 
-function install(path){
+const template = getTemplate(cli.flags.template);
+
+function createQuestions() {
+    const questions = [];
+
+    if (!cli.input[0]) {
+        questions.push({
+            name: 'name',
+            type: 'input',
+            message: 'Project Name:',
+            validate: input => /^([A-Za-z\-\_\d])+$/.test(input) || 'Project name may only include letters, numbers, underscores and dashes.'
+        });
+    }
+
+    if (!template) {
+        questions.push({
+            name: 'project',
+            type: 'list',
+            message: 'Choose project',
+            choices: CHOICES
+        });
+    }
+
+    if (!cli.flags.yes) {
+        questions.push(
+            {
+                name: 'version',
+                type: 'input',
+                message: 'Version:',
+                default: '1.0.0'
+            },
+            {
+                name: 'description',
+                type: 'input',
+                message: 'Description:'
+            },
+            {
+                name: 'author',
+                type: 'input',
+                message: 'Author:'
+            },
+            {
+                name: 'license',
+                type: 'input',
+                message: 'License:',
+                default: 'ISC'
+            });
+    }
+
+    if (!cli.flags.install) {
+        questions.push(
+            {
+                name: 'shouldInstall',
+                type: 'confirm',
+                message: 'Run npm install?'
+            }
+        );
+    }
+
+    questions.push(
+        {
+            name: 'shouldGitInit',
+            type: 'confirm',
+            message: 'Create Git Repository?'
+        }
+    );
+
+    return questions;
+}
+
+async function askQuestions(questions) {
+    const answers = await inquirer.prompt(questions);
+    const {
+        project = template,
+        name = cli.input[0],
+        version = "1.0.0",
+        description = "",
+        author = "",
+        license = "ISC",
+        shouldInstall,
+        shouldGitInit } = answers;
+
+    const templatePath = path.join(TEMPLATE_DIR, project)
+    const targetPath = path.join(CURR_DIR, name);
+
+    if (!await confirmOptions(targetPath, { name, version, description, author, license, project })) {
+        logger.info("Aborted");
+        return;
+    }
+
+    if (!cli.flags.dryRun) {
+        const format = formatFromAnswers({ name, version, description, author, license });
+
+        await generateProject(templatePath, targetPath, format);
+
+        if (shouldInstall) {
+            await installDependencies(targetPath);
+        }
+
+        if (shouldGitInit) {
+            await initializeGitRepo(targetPath);
+        }
+    }
+
+    logger.info(chalk`{green Project generated:} {underline ${targetPath}}`);
+}
+
+async function confirmOptions(targetPath, { name, version, description, author, license, project }) {
+    logger.info(chalk`About to generate a {underline ${project}} project in {underline ${targetPath}}`);
+
+    logger.info(`
+{
+    "name": "${name}",
+    "version": "${version}",
+    "description": "${description}",
+    "author": "${author}",
+    "license": "${license}"
+}`);
+
+    return promptShouldContinue()
+}
+
+async function promptShouldContinue() {
+    const cont = await inquirer.prompt([
+        {
+            name: 'confirm',
+            type: 'confirm',
+            message: 'Is this OK?'
+        }
+    ]);
+
+    return cont.confirm;
+}
+
+function formatFromAnswers({ name, version, description, author, license }) {
+    const format = [
+        {
+            replace: /{title}/,
+            value: name
+        },
+        {
+            replace: /{version}/,
+            value: version
+        },
+        {
+            replace: /{description}/,
+            value: description
+        },
+        {
+            replace: /{author}/,
+            value: author
+        },
+        {
+            replace: /{license}/,
+            value: license
+        }
+    ]
+
+    return format;
+}
+
+async function generateProject(templatePath, targetPath, format) {
+    await fs.promises.mkdir(targetPath);
+    await copyDirectoryContents(templatePath, targetPath, format);
+}
+
+function spawnPromise(command, args, options) {
     return new Promise((resolve, reject) => {
-        spawn('npm', ['install'], {
-            stdio: 'inherit',
-            cwd: path
-        }).on('close', code => code ? reject() : resolve());
+        spawn(command, args, options)
+            .on('close', code => code ? reject() : resolve());
     });
 }
 
-function gitInit(path){
-    return new Promise((resolve, reject) => {
-        spawn('git', ['init'], {
+async function installDependencies(cwd) {
+    logger.info(`> npm install`);
+
+    try {
+        await spawnPromise('npm', ['install'], {
             stdio: 'inherit',
-            cwd: path
-        }).on('close', code => code ? reject() : resolve());
-    });
+            cwd
+        });
+        logger.info(chalk`{blue Install finished}`);
+    } catch {
+        logger.info(chalk`{red There was an error installing the project}`);
+        logger.info(chalk`Install manually with {underline npm install} in {underline ${targetPath}`);
+    }
 }
 
-function copyDirectoryContents(templatePath, targetPath) {
-    const filesToCreate = fs.readdirSync(templatePath);
+async function initializeGitRepo(cwd) {
+    logger.info(`> git init`);
 
-    filesToCreate.forEach(file => {
-        const templateFilePath = `${templatePath}/${file}`;
-        const targetFilePath = `${targetPath}/${file}`;
-        
-        const stats = fs.statSync(templateFilePath);
+    try {
+        await spawnPromise('git', ['init'], {
+            stdio: 'inherit',
+            cwd
+        });
+        logger.info(chalk`{blue Git repo created}`);
+    } catch (err) {
+        logger.info(chalk`{red There was an error initializing the git repo}`);
+        logger.info(chalk`Initialize repo manually with {underline git init} in {underline ${targetPath}`);
+    }
+}
+
+async function formatFile(path, format, output) {
+    const file = await fs.promises.readFile(path, 'utf8');
+    const content = replace(file, format);
+
+    await fs.promises.writeFile(output ? output : path, content, 'utf8');
+}
+
+async function handleFile(templateFilePath, targetFilePath, format) {
+    if (templateFilePath.includes('package.json')) {
+        await formatFile(templateFilePath, format, targetFilePath);
+    } else {
+        await fs.promises.copyFile(templateFilePath, targetFilePath);
+    }
+}
+
+async function handleDirectory(templateFilePath, targetFilePath, format) {
+    await fs.promises.mkdir(targetFilePath);
+    await copyDirectoryContents(templateFilePath, targetFilePath, format);
+}
+
+async function copyDirectoryContents(templatePath, targetPath, format) {
+    const files = await fs.promises.readdir(templatePath);
+
+    await asyncForEach(files, async file => {
+        const templateFilePath = path.join(templatePath, file);
+        const targetFilePath = path.join(targetPath, file);
+
+        const stats = await fs.promises.stat(templateFilePath);
 
         if (stats.isFile()) {
-            fs.copyFileSync(templateFilePath, targetFilePath);
+            await handleFile(templateFilePath, targetFilePath, format);
         } else if (stats.isDirectory()) {
-            fs.mkdirSync(targetFilePath);
-            copyDirectoryContents(templateFilePath, targetFilePath);
+            await handleDirectory(templateFilePath, targetFilePath, format);
         }
     });
 }
+
+function getChoices(templatePath) {
+    const templates = fs.readdirSync(templatePath).sort((a, b) => CHOICE_ORDER.indexOf(b) - CHOICE_ORDER.indexOf(a));
+
+    return templates;
+}
+
+function getTemplate(template) {
+    if (template) {
+        if (CHOICES.includes(template)) {
+            logger.debug("Found template argument", template);
+            return template;
+        } else {
+            return undefined;
+        }
+    }
+}
+
+const questions = createQuestions();
+askQuestions(questions);
