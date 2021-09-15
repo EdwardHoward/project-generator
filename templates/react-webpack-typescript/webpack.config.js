@@ -1,13 +1,14 @@
-  const path = require('path');
+const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = {
+  mode: 'production',
   entry: './src/index.tsx',
   module: {
     rules: [
       {
-        test: /\.tsx?$/,
-        use: 'ts-loader',
+        test: /\.(ts|js)x?$/,
+        use: 'babel-loader',
         exclude: /node_modules/
       },
       {
@@ -22,12 +23,11 @@ module.exports = {
   plugins: [
    new HtmlWebpackPlugin({
       template: 'index.html',
-      inject: false
+      inject: true
    })
   ],
   output: {
     filename: 'bundle.js',
-    path: path.resolve(__dirname, 'dist'),
-    publicPath: '/dist/'
+    path: path.resolve(__dirname, 'dist')
   }
 };
