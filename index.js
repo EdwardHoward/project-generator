@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 
+const chalk = require('chalk');
 const fs = require('fs');
+const inquirer = require('inquirer');
 const meow = require('meow');
 const path = require('path');
-const chalk = require('chalk');
-const Logger = require('./logger');
 const spawn = require('cross-spawn');
-const inquirer = require('inquirer');
+
+const logger = require('./logger')("verbose");
 const { CHOICE_ORDER } = require('./constants');
 const { asyncForEach, replace } = require('./utils');
 
@@ -14,8 +15,6 @@ const CURR_DIR = process.cwd();
 const TEMPLATE_DIR = path.join(__dirname, 'templates');
 
 const CHOICES = getChoices(TEMPLATE_DIR);
-
-const logger = Logger("verbose");
 
 const cli = meow(`
         Usage
@@ -132,7 +131,6 @@ async function askQuestions(questions) {
     const targetPath = path.join(CURR_DIR, name);
 
     if (!await confirmOptions(targetPath, { name, version, description, author, license, project })) {
-        logger.info("Aborted");
         return;
     }
 
