@@ -7,6 +7,6 @@ describe('<App />', () => {
     it('renders', () => {
         render(<App />);
 
-        expect(screen.getByText('It Works!')).toBeInTheDocument();
+        expect(screen.getByTestId('app')).toBeInTheDocument();
     });
 });
