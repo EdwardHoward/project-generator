@@ -9,7 +9,7 @@ const spawn = require('cross-spawn');
 
 const logger = require('./logger')("verbose");
 const { CHOICE_ORDER } = require('./constants');
-const { asyncForEach, replace } = require('./utils');
+const { replace } = require('./utils');
 
 const CURR_DIR = process.cwd();
 const TEMPLATE_DIR = path.join(__dirname, 'templates');
@@ -247,22 +247,25 @@ async function initializeGitRepo(cwd) {
     }
 }
 
-async function formatFile(path, format, output) {
+async function formatFile(path, format) {
     const file = await fs.promises.readFile(path, 'utf8');
     const content = replace(file, format);
 
-    await fs.promises.writeFile(output ? output : path, content, 'utf8');
+    return content;
 }
 
-async function handleFile(templateFilePath, targetFilePath, format) {
+async function copyFile(templateFilePath, targetFilePath, format) {
     if (templateFilePath.includes('package.json')) {
-        await formatFile(templateFilePath, format, targetFilePath);
+        // Format the package.json file to include options
+        const content = await formatFile(templateFilePath, format);
+        await fs.promises.writeFile(targetFilePath, content, 'utf8');
     } else {
+        // Copy all other files
         await fs.promises.copyFile(templateFilePath, targetFilePath);
     }
 }
 
-async function handleDirectory(templateFilePath, targetFilePath, format) {
+async function copyDirectory(templateFilePath, targetFilePath, format) {
     await fs.promises.mkdir(targetFilePath);
     await copyDirectoryContents(templateFilePath, targetFilePath, format);
 }
@@ -270,18 +273,18 @@ async function handleDirectory(templateFilePath, targetFilePath, format) {
 async function copyDirectoryContents(templatePath, targetPath, format) {
     const files = await fs.promises.readdir(templatePath);
 
-    await asyncForEach(files, async file => {
+    await Promise.all(files.map(async file => {
         const templateFilePath = path.join(templatePath, file);
         const targetFilePath = path.join(targetPath, file);
 
         const stats = await fs.promises.stat(templateFilePath);
 
         if (stats.isFile()) {
-            await handleFile(templateFilePath, targetFilePath, format);
+            await copyFile(templateFilePath, targetFilePath, format);
         } else if (stats.isDirectory()) {
-            await handleDirectory(templateFilePath, targetFilePath, format);
+            await copyDirectory(templateFilePath, targetFilePath, format);
         }
-    });
+    }));
 }
 
 function getChoices(templatePath) {
@@ -291,13 +294,9 @@ function getChoices(templatePath) {
 }
 
 function getTemplate(template) {
-    if (template) {
-        if (CHOICES.includes(template)) {
-            logger.debug("Found template argument", template);
-            return template;
-        } else {
-            return undefined;
-        }
+    if (template && CHOICES.includes(template)) {
+        logger.debug("Using template: ", template);
+        return template;
     }
 }
 
