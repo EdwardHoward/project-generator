@@ -12,7 +12,6 @@ function replace(str, format) {
     return str;
 }
 
-
 module.exports = {
     asyncForEach,
     replace
