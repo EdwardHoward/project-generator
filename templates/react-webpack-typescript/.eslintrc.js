@@ -12,7 +12,7 @@ module.exports = {
         {
             files: ['webpack.dev.js', 'webpack.prod.js'],
             rules: {
-                'import/no-extraneous-dependencies': { devDependencies: true },
+                'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
             },
         },
     ],

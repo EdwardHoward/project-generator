@@ -5,5 +5,5 @@ export default function App() {
         <div data-testid="app">
             <h1>It Works!</h1>
         </div>
-    )
+    );
 }
