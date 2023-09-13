@@ -6,10 +6,10 @@ module.exports = {
   module: {
     rules: [
       {
-        test: /\.tsx?$/,
-        use: 'ts-loader',
+        test: /\.(ts|js)x?$/,
+        use: 'babel-loader',
         exclude: /node_modules/
-      }
+    }
     ]
   },
   resolve: {
@@ -24,6 +24,6 @@ module.exports = {
   output: {
     filename: 'bundle.js',
     path: path.resolve(__dirname, 'dist'),
-    publicPath: '/dist/'
+    publicPath: '/'
   }
 };
