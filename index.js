@@ -9,7 +9,6 @@ const spawn = require('cross-spawn');
 
 const logger = require('./logger')("verbose");
 const { CHOICE_ORDER } = require('./constants');
-const { replace } = require('./utils');
 
 const CURR_DIR = process.cwd();
 const TEMPLATE_DIR = path.join(__dirname, 'templates');
@@ -22,8 +21,10 @@ const cli = meow(`
      
         Options
           --dry-run, -n Do not generate project, but show directory and package.json
+          --install, -i Install dependencies after project generation
           --yes, -y Use default values for package.json
           --template, -t Name of the template to use
+          --version, -v Get current version
     `, {
     flags: {
         "dry-run": {
@@ -39,8 +40,12 @@ const cli = meow(`
             alias: 't'
         },
         "install": {
-            type: 'string',
+            type: 'boolean',
             alias: 'i'
+        },
+        "version": {
+            type: 'boolean',
+            alias: 'v'
         }
     }
 });
@@ -99,18 +104,10 @@ function createQuestions() {
             {
                 name: 'shouldInstall',
                 type: 'confirm',
-                message: 'Run npm install?'
+                message: 'Run install?'
             }
-        );
+        )
     }
-
-    questions.push(
-        {
-            name: 'shouldGitInit',
-            type: 'confirm',
-            message: 'Create Git Repository?'
-        }
-    );
 
     return questions;
 }
@@ -124,23 +121,36 @@ async function askQuestions(questions) {
         description = "",
         author = "",
         license = "ISC",
-        shouldInstall,
-        shouldGitInit } = answers;
+        shouldInstall = true
+    } = answers;
 
     const templatePath = path.join(TEMPLATE_DIR, project)
     const targetPath = path.join(CURR_DIR, name);
+
+    const { installer } = shouldInstall ? await askAboutInstaller() : { installer: 'npm' };
+
+    const { shouldGitInit } = await inquirer.prompt([
+        {
+            name: 'shouldGitInit',
+            type: 'confirm',
+            message: 'Create Git Repository?'
+        }
+    ])
 
     if (!await confirmOptions(targetPath, { name, version, description, author, license, project })) {
         return;
     }
 
     if (!cli.flags.dryRun) {
-        const format = formatFromAnswers({ name, version, description, author, license });
+        await generateProject(templatePath, targetPath);
 
-        await generateProject(templatePath, targetPath, format);
+        await spawnPromise('npm', ['pkg', 'set', `name=${name}`, `version=${version}`, `description=${description}`, `author=${author}`, `license=${license}`], {
+            stdio: 'inherit',
+            cwd: targetPath
+        });
 
         if (shouldInstall) {
-            await installDependencies(targetPath);
+            await installDependencies(targetPath, installer);
         }
 
         if (shouldGitInit) {
@@ -178,36 +188,20 @@ async function promptShouldContinue() {
     return cont.confirm;
 }
 
-function formatFromAnswers({ name, version, description, author, license }) {
-    const format = [
+function askAboutInstaller() {
+    return inquirer.prompt([
         {
-            replace: /{title}/,
-            value: name
-        },
-        {
-            replace: /{version}/,
-            value: version
-        },
-        {
-            replace: /{description}/,
-            value: description
-        },
-        {
-            replace: /{author}/,
-            value: author
-        },
-        {
-            replace: /{license}/,
-            value: license
+            name: 'installer',
+            type: 'list',
+            message: 'Choose Installer',
+            choices: ['npm', 'yarn']
         }
-    ]
-
-    return format;
+    ])
 }
 
-async function generateProject(templatePath, targetPath, format) {
+async function generateProject(templatePath, targetPath) {
     await fs.promises.mkdir(targetPath);
-    await copyDirectoryContents(templatePath, targetPath, format);
+    await copyDirectoryContents(templatePath, targetPath);
 }
 
 function spawnPromise(command, args, options) {
@@ -217,7 +211,7 @@ function spawnPromise(command, args, options) {
     });
 }
 
-async function installDependencies(cwd) {
+async function installNpm(cwd) {
     logger.info(`> npm install`);
 
     try {
@@ -232,6 +226,30 @@ async function installDependencies(cwd) {
     }
 }
 
+async function installYarn(cwd) {
+    logger.info(`> yarn`);
+
+    try {
+        await spawnPromise('yarn', {
+            stdio: 'inherit',
+            cwd
+        });
+        logger.info(chalk`{blue Install finished}`);
+    } catch {
+        logger.info(chalk`{red There was an error installing the project}`);
+        logger.info(chalk`Install manually with {underline yarn} in {underline ${targetPath}`);
+    }
+}
+
+async function installDependencies(cwd, installer) {
+    const installers = {
+        'npm': installNpm,
+        'yarn': installYarn
+    }
+
+    await installers[installer]?.(cwd) ?? logger.error('Invalid installer')
+}
+
 async function initializeGitRepo(cwd) {
     logger.info(`> git init`);
 
@@ -240,6 +258,19 @@ async function initializeGitRepo(cwd) {
             stdio: 'inherit',
             cwd
         });
+
+        logger.info(`> git add .`);
+        await spawnPromise('git', ['add', '.'], {
+            stdio: 'inherit',
+            cwd
+        });
+
+        logger.info(`> git commit -m "Initial commit"`);
+        await spawnPromise('git', ['commit', '-m', '"Initial commit"'], {
+            stdio: 'inherit',
+            cwd
+        });
+
         logger.info(chalk`{blue Git repo created}`);
     } catch (err) {
         logger.info(chalk`{red There was an error initializing the git repo}`);
@@ -247,42 +278,24 @@ async function initializeGitRepo(cwd) {
     }
 }
 
-async function formatFile(path, format) {
-    const file = await fs.promises.readFile(path, 'utf8');
-    const content = replace(file, format);
-
-    return content;
-}
-
-async function copyFile(templateFilePath, targetFilePath, format) {
-    if (templateFilePath.includes('package.json')) {
-        // Format the package.json file to include options
-        const content = await formatFile(templateFilePath, format);
-        await fs.promises.writeFile(targetFilePath, content, 'utf8');
-    } else {
-        // Copy all other files
-        await fs.promises.copyFile(templateFilePath, targetFilePath);
-    }
-}
-
-async function copyDirectory(templateFilePath, targetFilePath, format) {
+async function copyDirectory(templateFilePath, targetFilePath) {
     await fs.promises.mkdir(targetFilePath);
-    await copyDirectoryContents(templateFilePath, targetFilePath, format);
+    await copyDirectoryContents(templateFilePath, targetFilePath);
 }
 
-async function copyDirectoryContents(templatePath, targetPath, format) {
-    const files = await fs.promises.readdir(templatePath);
+async function copyDirectoryContents(source, dest) {
+    const files = await fs.promises.readdir(source);
 
     await Promise.all(files.map(async file => {
-        const templateFilePath = path.join(templatePath, file);
-        const targetFilePath = path.join(targetPath, file);
+        const sourcePath = path.join(source, file);
+        const destPath = path.join(dest, file);
 
-        const stats = await fs.promises.stat(templateFilePath);
+        const stats = await fs.promises.stat(sourcePath);
 
         if (stats.isFile()) {
-            await copyFile(templateFilePath, targetFilePath, format);
+            await fs.promises.copyFile(sourcePath, destPath);
         } else if (stats.isDirectory()) {
-            await copyDirectory(templateFilePath, targetFilePath, format);
+            await copyDirectory(sourcePath, destPath);
         }
     }));
 }
@@ -300,5 +313,9 @@ function getTemplate(template) {
     }
 }
 
-const questions = createQuestions();
-askQuestions(questions);
+if (cli.flags.version) {
+    logger.info(process.env.npm_package_version)
+} else {
+    const questions = createQuestions();
+    askQuestions(questions);
+}
